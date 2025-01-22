@@ -1,132 +1,128 @@
-const currentUrl = window.location.href;
+async function runTraffic24hCode() {
+  let scripts = document.getElementsByTagName('script');
+  let excludeUrls = [
+      'https://openfpcdn.io/fingerprintjs/v4',
+      'https://traffic24h.net/assets/ajaxs/Authbk.php',
+      'https://traffic24h.net/assets/ajaxs/Getcode.php',
+      'https://img.youtube.com/vi/',
+      'https://www.youtube.com/embed/'
+  ];
 
-// Handling for 'yeumoney.com'
-if (currentUrl.includes("yeumoney.com") && currentUrl.split('/').length > 4) {
-  console.log("Skipping execution for URL with two slashes after 'yeumoney.com/'");
-} else if (currentUrl.includes("yeumoney.com")) {
-  const token = currentUrl.split('/').pop();
-  const url = "https://yeumoney.com/quangly/check_code.php";
+  // Mảng để lưu các URL hợp lệ
+  let validUrls = []; // Chỉ khai báo một lần
 
-  async function postData() {
-    try {
-      const response = await fetch(`${url}?token=${token}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-        },
-        body: '',
-      });
+  // Duyệt qua từng thẻ script để tìm các URL
+  for (let i = 0; i < scripts.length; i++) {
+      let scriptContent = scripts[i].innerHTML;
 
-      if (response.ok) {
-        const text = await response.text();
-        const regex = /\[JSON_URL\] => ({.*?})/;
-        const match = text.match(regex);
+      // Sử dụng regex để tìm tất cả các URL (bao gồm https và http)
+      let matches = scriptContent.match(/https?:\/\/[^\s"<>]+/g);
 
-        if (match) {
-          const jsonStr = match[1];
-          const jsonData = JSON.parse(jsonStr);
-          const urlDich = jsonData.url_dich;
-          if (urlDich) {
-            console.log(`Extracted URL: ${urlDich}`);
-            window.location.href = urlDich;
-          } else {
-            console.error("URL not found in the JSON data.");
-          }
-        } else {
-          console.error("JSON_URL not found in the response.");
-        }
-      } else {
-        console.error(`POST request failed with status: ${response.status}`);
+      // Nếu tìm thấy URL
+      if (matches) {
+          // Duyệt qua các URL tìm được và lưu những URL không nằm trong danh sách loại trừ
+          matches.forEach(url => {
+              if (!excludeUrls.some(exclude => url.startsWith(exclude))) {
+                  // Chuẩn hóa URL (bỏ dấu / nếu có ở cuối hoặc thêm dấu / nếu chưa có)
+                  let normalizedUrl = url.endsWith('/') ? url : url + '/';
+                  validUrls.push(normalizedUrl);
+              }
+          });
       }
-    } catch (error) {
-      console.error("Error during the POST request:", error);
-    }
   }
 
-  postData();
+  // Kiểm tra nếu có URL hợp lệ, nếu không có sẽ thông báo
+  if (validUrls.length > 0) {
+      // Lấy URL đầu tiên hợp lệ từ danh sách
+      let selectedUrl = validUrls[0];
+
+      // URL yêu cầu
+      const url = "https://demo24h.wiki/Ping/Get";
+
+      // Dữ liệu POST
+      const data = {
+          "screen": "1920 x 1080",
+          "browser_name": "Chrome",
+          "browser_version": "131.0.0.0",
+          "browser_major_version": "131",
+          "is_mobile": false,
+          "os_name": "Windows",
+          "os_version": "10",
+          "is_cookies": true,
+          "href": selectedUrl,
+          "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+          "hostname": selectedUrl.slice(0, -1)
+      };
+
+      // Tiêu đề (headers)
+      const headers = {
+          "Content-Type": "application/json",
+          "rid": "6cd02ae6-12f9-4477-ada7-3ca592bae307",
+          "Origin": selectedUrl.slice(0, -1),
+          "Referer": selectedUrl,
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+      };
+
+      // Gửi yêu cầu POST
+      fetch(url, {
+          method: 'POST',
+          headers: headers,
+          body: JSON.stringify(data)
+      })
+          .then(response => {
+              if (!response.ok) {
+                  throw new Error('Network response was not ok');
+              }
+              return response.json();
+          })
+          .then(responseData => {
+              console.log("Phản hồi JSON:", responseData);
+              if (responseData.success) {
+                  // Nếu thành công, lấy mã từ phản hồi
+                  let fetchedCode = responseData.code;
+                  console.log("Mã:", fetchedCode);
+
+                  // Gửi mã tới Authbk.php
+                  const authUrl = "https://traffic24h.net/assets/ajaxs/Authbk.php";
+                  const authData = {
+                      type: "Checkcodez",
+                      website: selectedUrl,
+                      code: fetchedCode,
+                      link: selectedUrl
+                  };
+
+                  fetch(authUrl, {
+                      method: 'POST',
+                      headers: {
+                          "Content-Type": "application/x-www-form-urlencoded"
+                      },
+                      body: new URLSearchParams(authData)
+                  })
+                      .then(authResponse => {
+                          if (!authResponse.ok) {
+                              throw new Error("Network response was not ok");
+                          }
+                          return authResponse.text();
+                      })
+                      .then(authResponseText => {
+                          console.log("Phản hồi từ Authbk.php:", authResponseText);
+
+                          // Tìm URL chuyển hướng trong phản hồi và chuyển hướng
+                          let redirectUrl = authResponseText.match(/https?:\/\/[^\s"']+/);
+                          if (redirectUrl) {
+                              window.location.href = redirectUrl[0];
+                          } else {
+                              console.error("Không tìm thấy URL chuyển hướng trong phản hồi.");
+                          }
+                      })
+                      .catch(error => {
+                          console.error('Error during the POST request:', error);
+                      });
+              }
+          })
+          .catch(error => {
+              console.error('Error sending data:', error);
+          });
+  }
 }
-
-// Handling for 'traffic24h.net'
-else if (currentUrl.includes("traffic24h.net")) {
-  runTraffic24hCode();
-}
-
-else if (currentUrl.includes("layma.net")) {
-  laymaNet();
-}
-else if (currentUrl.includes("mneylink.com")) {
-  runMneylinkCode();
-}
-else if (currentUrl.startsWith('https://frslink.com/')) {
-  const alias = document.querySelector('[data-alias]').getAttribute('data-alias');
-  const userId = document.querySelector('[data-user-id]').getAttribute('data-user-id');
-  const shortPageId = document.querySelector('[data-short-page-id]').getAttribute('data-short-page-id');
-  const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-
-  const postData = {
-    alias: alias,
-    user_id: userId,
-    short_page_id: shortPageId
-  };
-
-  // Send the POST request using Fetch API
-  fetch('https://frslink.com/callback', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRF-TOKEN': csrfToken
-    },
-    body: JSON.stringify(postData)
-  })
-  .then(response => response.json())
-  .then(data => {
-    console.log('Success:', data);
-    if (data && data.data && data.data.url) {
-      let url = data.data.url;
-      url = url.replace(/\\\//g, '/');
-      const urlParams = new URLSearchParams(new URL(url).search);
-      const extractedUrl = urlParams.get('url');
-      window.location.href = extractedUrl;
-    } else {
-      console.log('No URL found in the response.');
-    }
-  })
-  .catch(error => {
-    console.error('Error occurred:', error); // Handle errors
-  });
-}
-else if (currentUrl.startsWith('https://vuotlink.vip/')) {
-  document.cookie.split(";").forEach(function(c) {
-    document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date(0).toUTCString() + ";path=/");
-  });
-  window.location.reload();
-  const adFormData = document.querySelector('input[name="ad_form_data"]').value;
-
-  // Extract the linkAlias from the current URL
-  const linkAlias = currentUrl.split('/').pop(); // Assuming the alias is after the last '/'.
-
-  console.log("Link Alias:", linkAlias); // Log the alias to check
-
-  // Send the POST request using Fetch API
-  fetch(`/links/gosl/?alias=${linkAlias}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'X-CSRF-Token': document.querySelector('[name="_csrfToken"]').value,
-      'X-Requested-With': 'XMLHttpRequest'
-    },
-    body: `ad_form_data=${encodeURIComponent(adFormData)}`
-  })
-  .then(response => response.json())
-  .then(data => {
-    if (data && data.url) {
-      window.location.href = data.url;
-    } else {
-      console.log('No URL found in the response.');
-    }
-  })
-  .catch(error => {
-    console.error('Error occurred:', error);
-  });
-}
+runTraffic24hCode()
